@@ -1,10 +1,13 @@
 base:  # base hyperparameters
   project_name     : 'Quantum Optics Simulation'
   model_name       : 'version_test'
-  dataset_name     : "dataset.hdf5"       # prefix : PROC_DATA_DIR/data_type
+  dataset_name     : "quantum_optics.hdf5"       # prefix : PROC_DATA_DIR/data_type
   seed             : 0
   device           : "cuda:0"
-  data_ratio       : [0.8, 0.1, 0.1]      # train, valid, test
+  split_ratio       :
+    train            : 0.8
+    valid            : 0.1
+    test             : 0.1
   input_size       : [1, 80, 80, 80, 2]   # input [channel, depth, height, width, real/imag]
   hidden_channels  : 16                   # number of channels in hidden layers
   output_size      : [1, 80, 80, 80, 2]   # output [channel, depth, height, width, real/imag]

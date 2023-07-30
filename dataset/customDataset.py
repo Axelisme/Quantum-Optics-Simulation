@@ -3,78 +3,60 @@
 
 import h5py
 from typing import Callable, Optional
-from os import path
 import torch.utils.data as data
-from util.tool import clear_folder
-from hyperparameters import *
 from config.configClass import Config
 
-def load_hdf5(data_type: str, dataset_name: str) -> h5py.File:
-    return h5py.File(path.join(PROC_DATA_DIR, data_type, dataset_name), "r")
+def load_processed_dataset(file_path: str):
+    """load the processed dataset from the file."""
+    return h5py.File(file_path, "r")
 
-def sample_saver(sample_dir ,input, label, label_names):
-    """save transformed input and label to sample folder"""
-    return None
-
-def save_samples(reader, data_type, transform = None, freq = 100, max_num = 1000):
-    TYPE_EX_DIR = path.join(TRAIN_EX_DIR, data_type)
-    clear_folder(TYPE_EX_DIR)
-    label_names = eval(reader.attrs["label_names"])
-    for idx, (input, label) in enumerate(reader['dataset']):
-        if idx % freq != 0 or idx >= max_num*freq:
-            continue
-        if transform is not None:
-            input = transform(input)
-        sample_saver(TYPE_EX_DIR, input, label, label_names)
 
 class CustomDataSet(data.Dataset):
     """define a class for the dataset"""
-    def __init__(self, conf: Config, data_type: str, dataset_name = "dataset.hdf5", transform:Optional[Callable] = None):
+    def __init__(self, conf: Config, dataset_path:str, transform:Optional[Callable] = None):
         """initialize the dataset
-            conf: the config object
-            data_type: the type of the dataset, "train", "val" or "test"
-            dataset_name: the name of the dataset file
-            transform: the transform function of the input
+            conf: the config object.
+            dataset_path: the file path of the dataset file.
+            transform: the transform function before input the data to the model.
         """
         super(CustomDataSet, self).__init__()
         self.conf = conf
-        self.data_type = data_type
-        self.dataset_name = dataset_name
+        self.dataset_path = dataset_path
         self.transform = transform
 
-        # Don't load file handler in initial to avoid problem of multi-process
+        # load dataset meta data
+        with load_processed_dataset(self.dataset_path)  as reader:
+            self.length = reader.attrs["length"]
+
+        # Don't load file handler in init() to avoid problem of multi-process in DataLoader
+        # instead use __lazy_load() in __getitem__()
         self.fileHandler = None
         self.dataset = None
 
-        # load dataset attributes for __len__
-        with load_hdf5(data_type, dataset_name)  as reader:
-            self.length = reader.attrs["length"]
-            self.label_names = eval(reader.attrs["label_names"]) #type:ignore
-
-        # save some samples of input and label
-        save_samples(self.data_type, self.dataset_name, self.transform, freq = 100, max_num = 1000)
 
     def __del__(self):
         # close file handler if exists
-        if self.fileHandler is not None:
+        if hasattr(self,'fileHandler') and self.fileHandler is not None:
             self.fileHandler.close()
+
 
     def __getitem__(self, idx):
         # load file handler at first time of __getitem__
         if self.fileHandler is None:
             self.__lazy_load()
+        # get data
         input, label = self.dataset[idx]  # type:ignore
+        # transform input if needed
         if self.transform is not None:
             input = self.transform(input)
         return input, label
 
+
     def __len__(self):
         return self.length
 
+
     def __lazy_load(self):
-        if self.fileHandler is None:
-            self.fileHandler = load_hdf5(self.data_type, self.dataset_name)
-            self.dataset = self.fileHandler["dataset"]
-        else:
-            raise Exception("fileHandler is not None")
+        self.fileHandler = load_processed_dataset(self.dataset_path)
+        self.dataset = self.fileHandler["dataset"]
 

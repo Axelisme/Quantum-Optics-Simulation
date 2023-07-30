@@ -24,8 +24,8 @@ class SimulationLayer(nn.Module):
 class ToHiddenLayer(nn.Module):
     def __init__(self, hidden_channel):
         super(ToHiddenLayer, self).__init__()
-        self.conv1 = cc.CConv3x3x3(1, hidden_channel, stride=2, padding=1)
-        self.conv2 = cc.CConv3x3x3(hidden_channel, hidden_channel, stride=2, padding=1)
+        self.conv1 = cc.CConv3x3x3(             1, hidden_channel, stride=2, padding=1) # 80 -> 40
+        self.conv2 = cc.CConv3x3x3(hidden_channel, hidden_channel, stride=2, padding=1) # 40 -> 20
 
     def forward(self, x:Tensor) -> Tensor:
         out = self.conv1(x)
@@ -36,8 +36,8 @@ class ToHiddenLayer(nn.Module):
 class ProjectionLayer(nn.Module):
     def __init__(self, hidden_channel):
         super(ProjectionLayer, self).__init__()
-        self.Tconv1 = cc.CConvTrans3x3x3(hidden_channel, hidden_channel, stride=2, padding=1)
-        self.Tconv2 = cc.CConvTrans3x3x3(hidden_channel, 1, stride=2, padding=1)
+        self.Tconv1 = cc.CConvTrans3x3x3(hidden_channel, hidden_channel, stride=2, padding=1, output_padding=1) # 20 -> 40
+        self.Tconv2 = cc.CConvTrans3x3x3(hidden_channel,              1, stride=2, padding=1, output_padding=1) # 40 -> 80
 
     def forward(self, x:Tensor) -> Tensor:
         out = self.Tconv1(x)
@@ -56,7 +56,7 @@ class CustomModel(nn.Module):
         self.simulation = SimulationLayer(hidden_channel, hidden_channel)
         self.project = ProjectionLayer(hidden_channel)
 
-    @torch.compile
+    #@torch.compile
     def forward(self, x:Tensor) -> Tensor:
         """Forward a batch of data through the model."""
         out = self.to_hidden(x)

@@ -102,14 +102,14 @@ class CConvTrans3d(nn.Module):
 
 
 class CConv1x1x1(nn.Module):
-    def __init__(self, in_channel, out_channel, **kwargs):
+    def __init__(self, in_channel, out_channel, stride=1, padding=0, bias=False, **kwargs):
         super(CConv1x1x1, self).__init__()
         self.conv = CConv3d(in_channel,
                             out_channel,
                             kernel_size=1,
-                            stride=1,
-                            padding=0,
-                            bias=False,
+                            stride=stride,
+                            padding=padding,
+                            bias=bias,
                             **kwargs)
 
     def forward(self, x):
@@ -117,14 +117,14 @@ class CConv1x1x1(nn.Module):
 
 
 class CConv3x3x3(nn.Module):
-    def __init__(self, in_channel, out_channel, **kwargs):
+    def __init__(self, in_channel, out_channel, stride=1, padding=1, bias=False, **kwargs):
         super(CConv3x3x3, self).__init__()
         self.conv = CConv3d(in_channel,
                             out_channel,
                             kernel_size=3,
-                            stride=1,
-                            padding=1,
-                            bias=False,
+                            stride=stride,
+                            padding=padding,
+                            bias=bias,
                             **kwargs)
 
     def forward(self, x):
@@ -132,14 +132,14 @@ class CConv3x3x3(nn.Module):
 
 
 class CConvTrans3x3x3(nn.Module):
-    def __init__(self, in_channel, out_channel, **kwargs):
+    def __init__(self, in_channel, out_channel, stride=1, output_padding=1, bias=False, **kwargs):
         super(CConvTrans3x3x3, self).__init__()
         self.Tconv = CConvTrans3d(in_channel,
                                     out_channel,
                                     kernel_size=3,
-                                    stride=1,
-                                    padding=1,
-                                    bias=False,
+                                    stride=stride,
+                                    output_padding=output_padding,
+                                    bias=bias,
                                     **kwargs)
 
     def forward(self, x):

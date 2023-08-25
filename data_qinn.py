@@ -163,7 +163,7 @@ def propagate(Input: np.ndarray,
 
     return Output
 
-def get_wave_pair() -> Tuple[np.ndarray, np.ndarray]:
+def get_wave_pair(stepN) -> Tuple[np.ndarray, np.ndarray]:
     # 調製參數
     x0 = random.uniform(-Lx/3, Lx/3)      # x方向波包中心位置
     y0 = random.uniform(-Ly/3, Ly/3)      # y方向波包中心位置
@@ -192,7 +192,15 @@ def get_wave_pair() -> Tuple[np.ndarray, np.ndarray]:
     Slit_input = Input * slit_mask
 
     # 計算傳遞
-    Output = propagate(Slit_input, L3, k, stepN, propagation_distance, paraxial=False, absorbing_boundary=True)
+    Output = propagate(Slit_input, L3, k, stepN, propagation_distance/10, paraxial=False, absorbing_boundary=True)
+
+    # Normalize the intensity
+    dx = Lx / Nx
+    dy = Ly / Ny
+    dz = Lz / Nz
+    norm_factor = math.sqrt(dx * dy * dz)
+    Input = Input * norm_factor
+    Output = Output * norm_factor
 
     return Input, Output
 
@@ -204,15 +212,17 @@ def main():
 
     # 計算波包與傳遞
     t_start = time.time()
-    Input, Output = get_wave_pair()
+    Input, Output = get_wave_pair(stepN)
     t_end = time.time()
     print(f"time elapsed: {t_end-t_start:.2f} seconds")
-    print(f"Input shape: {Input.shape}")
-    print(f"Output shape: {Output.shape}")
 
     # convert wave form to intensity
     Input_intensity = Input[:,:,:,0]**2 + Input[:,:,:,1]**2
     Output_intensity = Output[:,:,:,:,0]**2 + Output[:,:,:,:,1]**2
+    print(f"Input shape: {Input.shape}")
+    print(f"Input sum: {np.sum(Input_intensity)}")
+    print(f"Output shape: {Output.shape}")
+    print(f"Output sum: {np.sum(Output_intensity[-1])}")
 
     # 畫出波包與傳遞後的波包
     fig_dpi = 80

@@ -10,6 +10,7 @@ from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torchmetrics import MeanMetric, Metric
 from config.configClass import Config
+from torch.cuda.amp import autocast, GradScaler
 
 class Trainer:
     def __init__(self,
@@ -57,24 +58,30 @@ class Trainer:
         # set gradient accumulation period
         gradient_accumulation_steps = self.config.gradient_accumulation_steps
 
+        # initial scaler
+        scaler = GradScaler()
+
         # train for one epoch
         batch_num = len(self.dataloader)
         pbar = tqdm(self.dataloader, total=batch_num, desc='Train', dynamic_ncols=True)
-        for batch_idx, (input, label) in enumerate(pbar, start=1):
-            # move input and label to device
-            input = input.to(self.device)
-            label = label.to(self.device)
-            # forward
-            output:Tensor = self.model(input)
-            # compute loss
-            loss:Tensor = self.criterion(output, label)
-            self.statistic.update(loss)
-            # backward
-            loss.backward()
-            # update parameters
-            if batch_idx % gradient_accumulation_steps == 0 or batch_idx == batch_num:
-                self.optimizer.step()
-                self.optimizer.zero_grad()
+        with autocast():
+            for batch_idx, (input, label) in enumerate(pbar, start=1):
+                # move input and label to device
+                input = input.to(self.device)
+                label = label.to(self.device)
+                # forward
+                output:Tensor = self.model(input)
+                # compute loss
+                loss:Tensor = self.criterion(output, label)
+                self.statistic.update(loss)
+                # backward
+                scaler.scale(loss).backward()
+                # update parameters
+                if batch_idx % gradient_accumulation_steps == 0 or batch_idx == batch_num:
+                    #self.optimizer.step()
+                    scaler.step(self.optimizer)
+                    scaler.update()
+                    self.optimizer.zero_grad()
 
         # return statistic result
         return self.statistic.compute()

@@ -8,14 +8,15 @@ from typing import Dict, List
 from torch.utils.data import random_split
 from util.io import clear_folder
 from hyperparameters import base_conf, PROC_DATA_DIR
-from data_qinn import get_wave_pair
+from data_qinn2 import get_wave_pair2d
 import random
 import multiprocessing as mp
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 
 # some parameters
-dataset_name = "debugset"
+stepN = 1
+dataset_name = f"propagation{stepN}"
 split_ratio = base_conf.split_ratio
 SAVE_DIR = os.path.join(PROC_DATA_DIR, dataset_name)
 clear_folder(SAVE_DIR) # clear the folder before generating data
@@ -24,10 +25,10 @@ random.seed(seed)
 
 #%%
 def loader(_):
-    Input,Ouput = get_wave_pair()
-    Input = Input.reshape(1,80,80,80,2)
-    Ouput = Ouput[-1,:,:,:,:]
-    Ouput = Ouput.reshape(1,80,80,80,2)
+    Input,Ouput = get_wave_pair2d()
+    Input = Input.reshape(1,80,80,2)
+    Ouput = Ouput[stepN,:,:,:]
+    Ouput = Ouput.reshape(1,80,80,2)
     return Input,Ouput
 
 def generate_process_data(save_dir:str, dataset_name:str, batch_max = -1) -> None:
@@ -38,9 +39,9 @@ def generate_process_data(save_dir:str, dataset_name:str, batch_max = -1) -> Non
     ALL_DATASET_PATH = os.path.join(save_dir, f"{dataset_name}_all.h5")
 
     # load data
-    data_dtype = np.dtype([("input", np.float32, (1,80,80,80,2)), ("output", np.float32,(1,80,80,80,2))])
+    data_dtype = np.dtype([("input", np.float32, (1,80,80,2)), ("output", np.float32,(1,80,80,2))])
     data_loader = loader
-    data_length = 1000
+    data_length = 50000
 
     if batch_max == -1:
         batch_max = data_length
@@ -58,7 +59,7 @@ def generate_process_data(save_dir:str, dataset_name:str, batch_max = -1) -> Non
         for batch_idx in tqdm(range(data_length//batch_max + 1), desc="Generating data"):
             batch_size = min(batch_max, data_length-batch_idx*batch_max)
             with mp.Pool(processes=mp.cpu_count()) as pool:
-                datas = pool.imap_unordered(data_loader, range(batch_size))
+                datas = pool.map(data_loader, range(batch_size))
                 for idx, data in enumerate(datas):
                     dataset[batch_idx*batch_max+idx] = data
 
@@ -116,11 +117,12 @@ def sampling_process_samples(save_dir, dataset_name:str, modes:List[str], num = 
             # save samples
             for idx, sample in enumerate(tqdm(batch, desc=f"Saving {mode} samples")):
                 Input, Output = dataset[sample]
-                Input_probability  = np.sum( Input[0,:,:,:,0]**2 +  Input[0,:,:,:,1]**2, axis=2)
-                Output_probability = np.sum(Output[0,:,:,:,0]**2 + Output[0,:,:,:,1]**2, axis=2)
+                Input_probability  = Input[0,:,:,0]**2 +  Input[0,:,:,1]**2
+                Output_probability = Output[0,:,:,0]**2 + Output[0,:,:,1]**2
                 # save input
                 fig = plt.figure()
                 plt.imshow(Input_probability, extent=[-40,40,-40,40])
+                plt.colorbar()
                 plt.title("Input probability")
                 plt.xlabel("x")
                 plt.ylabel("y")
@@ -129,6 +131,7 @@ def sampling_process_samples(save_dir, dataset_name:str, modes:List[str], num = 
                 # save output
                 fig = plt.figure()
                 plt.imshow(Output_probability, extent=[-40,40,-40,40])
+                plt.colorbar()
                 plt.title("Output probability")
                 plt.xlabel("x")
                 plt.ylabel("y")

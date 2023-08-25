@@ -5,14 +5,14 @@
 import wandb
 import torch
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import ExponentialLR
-from torch.nn import MSELoss
+from torch.optim.lr_scheduler import ConstantLR
+from loss.customLoss import CustomLoss
 from torch.utils.data import DataLoader
 from torchmetrics.classification import MulticlassAccuracy
 from torchmetrics import MetricCollection
 from util.utility import init
 from hyperparameters import train_conf
-from model.customModel import CustomModel
+from model.customModel2d import CustomModel
 from evaluator.Loss2evaluator import LossScore
 from valider.valider import Valider
 from dataset.customDataset import CustomDataSet
@@ -30,14 +30,14 @@ def start_train(conf:Config):
     # setup model and other components
     model = CustomModel(conf)                                                               # create model
     optimizer = AdamW(model.parameters(), lr=conf.init_lr)                                  # create optimizer
-    scheduler = ExponentialLR(optimizer, gamma=conf.gamma)                                  # create scheduler
-    criterion = MSELoss()                                                         # create criterion
+    scheduler = ConstantLR(optimizer)                                                       # create scheduler
+    criterion = CustomLoss()                                                         # create criterion
     #eval1 = MulticlassAccuracy(num_classes=conf.output_size, average='macro')               # create evaluator
     eval2 = LossScore(criterion)
     evaluators = MetricCollection({'val_loss':eval2})
 
     # load model and optimizer from checkpoint if needed
-    ckpt_manager = CheckPointManager(conf, model, optim=optimizer, scheduler=scheduler)
+    ckpt_manager = CheckPointManager(conf, model, optim=None, scheduler=None)
     if conf.Load:
         ckpt_manager.load(ckpt_path=conf.load_path, device=device)
 

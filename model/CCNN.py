@@ -77,6 +77,30 @@ class CConv3d(nn.Module):
         return out
 
 
+class CConvTrans2d(nn.Module):
+    def __init__(self, in_channels, out_channels, **kwargs):
+        super(CConvTrans2d, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        self.re_Tconv = nn.ConvTranspose2d(self.in_channels, self.out_channels, **kwargs)
+        self.im_Tconv = nn.ConvTranspose2d(self.in_channels, self.out_channels, **kwargs)
+
+        nn.init.xavier_uniform_(self.re_Tconv.weight)
+        nn.init.xavier_uniform_(self.im_Tconv.weight)
+
+    def forward(self, x):
+        x_re = x[..., 0]
+        x_im = x[..., 1]
+
+        out_re = self.re_Tconv(x_re) - self.im_Tconv(x_im)
+        out_im = self.re_Tconv(x_im) + self.im_Tconv(x_re)
+
+        out = torch.stack([out_re, out_im], -1)
+
+        return out
+
+
 class CConvTrans3d(nn.Module):
     def __init__(self, in_channels, out_channels, **kwargs):
         super(CConvTrans3d, self).__init__()
@@ -100,6 +124,20 @@ class CConvTrans3d(nn.Module):
 
         return out
 
+class CConv1x1(nn.Module):
+    def __init__(self, in_channel, out_channel, stride=1, padding=0, bias=False, **kwargs):
+        super(CConv1x1, self).__init__()
+        self.conv = CConv2d(in_channel,
+                            out_channel,
+                            kernel_size=1,
+                            stride=stride,
+                            padding=padding,
+                            bias=bias,
+                            **kwargs)
+
+    def forward(self, x):
+        return self.conv(x)
+
 
 class CConv1x1x1(nn.Module):
     def __init__(self, in_channel, out_channel, stride=1, padding=0, bias=False, **kwargs):
@@ -107,6 +145,21 @@ class CConv1x1x1(nn.Module):
         self.conv = CConv3d(in_channel,
                             out_channel,
                             kernel_size=1,
+                            stride=stride,
+                            padding=padding,
+                            bias=bias,
+                            **kwargs)
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+class CConv3x3(nn.Module):
+    def __init__(self, in_channel, out_channel, stride=1, padding=1, bias=False, **kwargs):
+        super(CConv3x3, self).__init__()
+        self.conv = CConv2d(in_channel,
+                            out_channel,
+                            kernel_size=3,
                             stride=stride,
                             padding=padding,
                             bias=bias,
@@ -131,6 +184,21 @@ class CConv3x3x3(nn.Module):
         return self.conv(x)
 
 
+class CConvTrans3x3(nn.Module):
+    def __init__(self, in_channel, out_channel, stride=1, output_padding=1, bias=False, **kwargs):
+        super(CConvTrans3x3, self).__init__()
+        self.Tconv = CConvTrans2d(in_channel,
+                                    out_channel,
+                                    kernel_size=3,
+                                    stride=stride,
+                                    output_padding=output_padding,
+                                    bias=bias,
+                                    **kwargs)
+
+    def forward(self, x):
+        return self.Tconv(x)
+
+
 class CConvTrans3x3x3(nn.Module):
     def __init__(self, in_channel, out_channel, stride=1, output_padding=1, bias=False, **kwargs):
         super(CConvTrans3x3x3, self).__init__()
@@ -144,6 +212,28 @@ class CConvTrans3x3x3(nn.Module):
 
     def forward(self, x):
         return self.Tconv(x)
+
+
+class CBatchnorm2d(nn.Module):
+    def __init__(self, in_channels):
+        super(CBatchnorm2d, self).__init__()
+        self.in_channels = in_channels
+
+        self.re_batch = nn.BatchNorm2d(in_channels)
+        self.im_batch = nn.BatchNorm2d(in_channels)
+
+
+    def forward(self, x):
+        x_re = x[..., 0]
+        x_im = x[..., 1]
+
+        out_re =  self.re_batch(x_re)
+        out_im =  self.im_batch(x_im)
+
+
+        out = torch.stack([out_re, out_im], -1)
+
+        return out
 
 
 class CBatchnorm3d(nn.Module):
@@ -168,6 +258,50 @@ class CBatchnorm3d(nn.Module):
         return out
 
 
+class CLayerNorm(nn.Module):
+    def __init__(self, in_channels):
+        super(CLayerNorm, self).__init__()
+        self.in_channels = in_channels
+
+        self.re_layer = nn.LayerNorm(in_channels)
+        self.im_layer = nn.LayerNorm(in_channels)
+
+
+    def forward(self, x):
+        x_re = x[..., 0]
+        x_im = x[..., 1]
+
+        out_re =  self.re_layer(x_re)
+        out_im =  self.im_layer(x_im)
+
+
+        out = torch.stack([out_re, out_im], -1)
+
+        return out
+
+
+class CMaxPool2d(nn.Module):
+    def __init__(self, kernel_size, **kwargs):
+        super(CMaxPool2d, self).__init__()
+        self.kernel_size = kernel_size
+
+
+        self.CMax_re = nn.MaxPool2d(self.kernel_size, **kwargs)
+        self.CMax_im = nn.MaxPool2d(self.kernel_size, **kwargs)
+
+    def forward(self, x):
+        x_re = x[..., 0]
+        x_im = x[..., 1]
+
+        out_re = self.CMax_re(x_re)
+        out_im = self.CMax_im(x_im)
+
+
+        out = torch.stack([out_re, out_im], -1)
+
+        return out
+
+
 class CMaxPool3d(nn.Module):
     def __init__(self, kernel_size, **kwargs):
         super(CMaxPool3d, self).__init__()
@@ -176,6 +310,28 @@ class CMaxPool3d(nn.Module):
 
         self.CMax_re = nn.MaxPool3d(self.kernel_size, **kwargs)
         self.CMax_im = nn.MaxPool3d(self.kernel_size, **kwargs)
+
+    def forward(self, x):
+        x_re = x[..., 0]
+        x_im = x[..., 1]
+
+        out_re = self.CMax_re(x_re)
+        out_im = self.CMax_im(x_im)
+
+
+        out = torch.stack([out_re, out_im], -1)
+
+        return out
+
+
+class CAvgPool2d(nn.Module):
+    def __init__(self, kernel_size, **kwargs):
+        super(CAvgPool2d, self).__init__()
+        self.kernel_size = kernel_size
+
+
+        self.CMax_re = nn.AvgPool2d(self.kernel_size, **kwargs)
+        self.CMax_im = nn.AvgPool2d(self.kernel_size, **kwargs)
 
     def forward(self, x):
         x_re = x[..., 0]
@@ -241,9 +397,39 @@ class CFlatten(nn.Module):
         return out
 
 
-class CResBlock(nn.Module):
+class CResBlock2d(nn.Module):
     def __init__(self, in_channel, out_channel, stride=1):
-        super(CResBlock, self).__init__()
+        super(CResBlock2d, self).__init__()
+        self.in_channel = in_channel
+        self.out_channel = out_channel
+
+        self.conv1 = CConv3x3(self.in_channel, self.out_channel, stride=stride)
+        self.bn1 = CBatchnorm2d(self.out_channel)
+        self.relu = CReLU(inplace=True)
+        self.conv2 = CConv3x3(self.out_channel, self.out_channel)
+        self.bn2 = CBatchnorm2d(self.out_channel)
+        self.downsample = nn.Sequential(
+            CConv1x1(self.in_channel, self.out_channel, stride=stride),
+            CBatchnorm2d(self.out_channel),
+        ) if stride != 1 or self.in_channel != self.out_channel else None
+
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+        if self.downsample is not None:
+            residual = self.downsample(residual)
+        out += residual
+        out = self.relu(out)
+        return out
+
+
+class CResBlock3d(nn.Module):
+    def __init__(self, in_channel, out_channel, stride=1):
+        super(CResBlock3d, self).__init__()
         self.in_channel = in_channel
         self.out_channel = out_channel
 

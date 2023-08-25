@@ -14,29 +14,30 @@ base:  # base hyperparameters
     train            : 0.8
     valid            : 0.1
     test             : 0.1
-  input_size       : [80, 80, 80, 2]          # input [channel, height, width]
-  output_size      : [80, 80, 80, 2]          # output [channel, height, width]
+  input_size       : [80, 80, 2]          # input [channel, height, width]
+  output_size      : [80, 80, 2]          # output [channel, height, width]
   load_path        : ~                    # if set to ~ (None), will use default path: {SAVED_MODEL_DIR}/{model_name}/ckpt_{model_name}.pt
   save_path        : ~                    # same as load_path
 
 train: # train hyperparameters
-  train_dataset    : 'data/processed/debugset/debugset_train.h5'       # train dataset name
-  valid_dataset    : 'data/processed/debugset/debugset_valid.h5'       # valid dataset name
+  train_dataset    : 'data/processed/propagation1/propagation1_train.h5'       # train dataset name
+  valid_dataset    : 'data/processed/propagation1/propagation1_valid.h5'       # valid dataset name
   hidden_channel   : 32                   # number of hidden channels
   gradient_accumulation_steps : 1
-  batch_size       : 32
-  epochs           : 10
+  batch_size       : 2048
+  epochs           : 30
   init_lr          : 0.0003               # initial learning rate
   gamma            : 0.95                 # learning rate decay rate
-  num_workers      : 0                    # number of workers for data loader
+  num_workers      : 2                    # number of workers for data loader
   WandB            : False                # whether to use Weights & Biases
-  Load             : False                # whether to load model
+  Load             : True                # whether to load model
   Save             : True                 # whether to save model
   save_metric      : 'val_loss'           # metric to save model
   lower_better     : True                # whether lower metric is better
 
 infer: # inference hyperparameters
-  test_dataset     : 'data/processed/debugset/debugset_test.h5'       # test dataset name
+  test_dataset     : 'data/processed/propagation1/propagation1_test.h5'       # test dataset name
+  hidden_channel   : 32                   # number of hidden channels
   batch_size       : 1
   num_workers      : 0                    # number of workers for data loader
   Load             : True                 # whether to load model

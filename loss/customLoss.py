@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch import Tensor
 from torch.nn import MSELoss
-from model.CCNN import CLayerNorm
+from model.CNN.CCNN import CLayerNorm
 
 class CustomLoss(nn.Module):
     """define a class to compute loss"""

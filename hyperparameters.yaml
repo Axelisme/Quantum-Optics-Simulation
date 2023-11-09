@@ -1,4 +1,4 @@
-RAW_DATA_DIR     : 'data/raw'             # Path to the raw data directory
+RAW_DATA_DIR     : ''             # Path to the raw data directory
 PROC_DATA_DIR    : 'data/processed'       # Path to the processed data directory
 TRAIN_EX_DIR     : 'data/training_data'   # Path to the training examples directory
 INFER_EX_DIR     : 'data/inference_data'  # Path to the inference examples directory
@@ -7,40 +7,44 @@ LOG_FILE         : 'data/log.txt'         # Path to the log file
 
 base:  # base hyperparameters
   project_name     : 'Quantum_Qptics_Simulation'
-  model_name       : 'version_test'
-  seed             : 0
+  model_name       : 'S10Nx'
+  seed             : 47
   device           : "cuda:0"
   split_ratio      :
     train            : 0.8
     valid            : 0.1
     test             : 0.1
-  input_size       : [80, 80, 2]          # input [channel, height, width]
-  output_size      : [80, 80, 2]          # output [channel, height, width]
-  load_path        : ~                    # if set to ~ (None), will use default path: {SAVED_MODEL_DIR}/{model_name}/ckpt_{model_name}.pt
-  save_path        : ~                    # same as load_path
+  input_size       : [1, 80, 80, 2]          # input [channel, height, width]
+  output_size      : [1, 80, 80, 2]          # output [channel, height, width]
+  step_N           : 4
 
 train: # train hyperparameters
-  train_dataset    : 'data/processed/propagation1/propagation1_train.h5'       # train dataset name
-  valid_dataset    : 'data/processed/propagation1/propagation1_valid.h5'       # valid dataset name
+  train_dataset    : 'data/processed/S4T10/train.h5'       # train dataset name
+  valid_dataset    : 'data/processed/S4T10/valid.h5'       # valid dataset name
   hidden_channel   : 32                   # number of hidden channels
   gradient_accumulation_steps : 1
-  batch_size       : 2048
-  epochs           : 30
+  batch_size       : 1024
+  epochs           : 100
   init_lr          : 0.0003               # initial learning rate
   gamma            : 0.95                 # learning rate decay rate
-  num_workers      : 2                    # number of workers for data loader
-  WandB            : False                # whether to use Weights & Biases
+  num_workers      : 4                    # number of workers for data loader
+  WandB            : True                 # whether to use Weights & Biases
   Load             : True                # whether to load model
   Save             : True                 # whether to save model
+  load_path        : ~
+  save_path        : ~                    # same as load_path
   save_metric      : 'val_loss'           # metric to save model
   lower_better     : True                # whether lower metric is better
+  keep_num         : 1                    # number of models to keep
+  reset            : False                # whether to reset training
 
 infer: # inference hyperparameters
-  test_dataset     : 'data/processed/propagation1/propagation1_test.h5'       # test dataset name
+  test_dataset     : 'data/processed/S0T10/test.h5'       # test dataset name
   hidden_channel   : 32                   # number of hidden channels
   batch_size       : 1
   num_workers      : 0                    # number of workers for data loader
   Load             : True                 # whether to load model
+  load_path        : ~
 
 sweep: # for tuning hyperparameters
   name : 'sweep_lr'

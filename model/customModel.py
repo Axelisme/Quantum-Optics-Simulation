@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch import Tensor
 from config.configClass import Config
-from . import CCNN as cc
+from .CNN import CCNN as cc
 
 
 class SimulationLayer(nn.Module):

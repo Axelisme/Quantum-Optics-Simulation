@@ -14,24 +14,32 @@ epsilon0 = 1.0 / (mu0 * c0**2)         # free space permittivity [As/Vm]
 eta0     = np.sqrt(mu0 / epsilon0)     # free space impedance [ohm]
 
 # Physical parameters
-n = 1.0                 # refractive index of the medium
-L0 = 95e-6           # wave function specific space length [m]
-Lx, Ly, Lz = L0, L0, L0
-#Lz = 532e-8            # wave function specific space length in z direction [m]
-lambda0 = 532e-9        # free space wavelength [m]
-propagation_distance = 0.07e-3  # propagation distance [m]
+n = 1.0                            # refractive index of the medium
+L0 = 1.0982e-3#5e-3                         # wave function specific space length [m]
+Lx, Ly, Lz = L0, L0/4, L0
+lambda0 = 532e-9                   # free space wavelength [m]
+seam_width = 1.5244e-5#4.1e-5
+seam_distance = 9.1463e-5#3.66e-4
+propagation_distance = 1.5724e-2#2.52e-1      # propagation distance [m]
 
 # Derived parameters
 k0 = 2*np.pi / lambda0       	       # free space wavenumber [m-1]
 k  = n * k0                            # medium wavenumber [m-1]
 
 # Computational domain parameters
-N = 80                 # number of spatial points
-Nx, Ny, Nz = N, N, N   # number of spatial points in x, y, z directions
-stepN = 8             # number of temporal points
-seam_width_pixels = 2
-seam1_pos = round(1.65*Nx/4)
-seam2_pos = round(2.35*Nx/4)
+N = 256                 # number of spatial points
+Nx, Ny, Nz = N, N//4, N   # number of spatial points in x, y, z directions
+stepN = 25             # number of temporal points
+seam_width_pixels = max(round(seam_width/L0*Nx), 2)
+seam_distance_pixels = max(round(seam_distance/L0*Nx), 2)
+seam1_pos = (Nx - seam_distance_pixels) // 2
+seam2_pos = (Nx + seam_distance_pixels) // 2
+print(f"seam_width_pixels: {seam_width_pixels}")
+print(f"seam_distance_pixels: {seam_distance_pixels}")
+print(f"seam1_pos: {seam1_pos}")
+print(f"seam2_pos: {seam2_pos}")
+
+
 
 def get_gaussian_wave_packet2d(N2, L2, k) -> np.ndarray:
     # parameters
@@ -42,21 +50,16 @@ def get_gaussian_wave_packet2d(N2, L2, k) -> np.ndarray:
     x0 = random.uniform(-(a*1e-4), (a*1e-4))      # x方向波包中心位置
     y0 = random.uniform(-(a*1e-4), (a*1e-4))      # y方向波包中心位置
 
-    theta = random.uniform(0, np.pi/8) # 波包動量與z軸夾角
-    phi = random.uniform(0, 2*np.pi)      # 波包動量在xy平面旋轉
+    #theta = random.uniform(0, np.pi/32) # 波包動量與z軸夾角
+    #phi = random.uniform(0, 2*np.pi)      # 波包動量在xy平面旋轉
+    theta = 0
+    phi = 0
 
     kx = k * np.sin(theta) * np.cos(phi)  # x方向波數
     ky = k * np.sin(theta) * np.sin(phi)  # y方向波數
 
-
-    Naa=0.006 # Boundary (Min)
-    Nab=0.007 # Boundary (MAx)
-
-    sigma_px = random.uniform(Naa*1e-27, Nab*1e-27)    # 高斯分佈標準差
-    sigma_py = random.uniform(Naa*1e-27, Nab*1e-27)    # 高斯分佈標準差
-
-    sigma_x = h_bar/sigma_px
-    sigma_y = h_bar/sigma_py
+    sigma_x = random.uniform(Lx/2, Lx)    # 高斯分佈標準差
+    sigma_y = random.uniform(Lx/2, Lx)    # 高斯分佈標準差
 
     dx = Lx/Nx
     dy = Ly/Ny
@@ -69,7 +72,7 @@ def get_gaussian_wave_packet2d(N2, L2, k) -> np.ndarray:
     # 3d grid
     x = np.linspace(-Lx/2, Lx/2, Nx)
     y = np.linspace(-Ly/2, Ly/2, Ny)
-    X, Y = np.meshgrid(x, y)
+    X, Y = np.meshgrid(x, y, indexing='ij')
 
     # 3d wave function
     wave = one_dimension_wave_func(X, x0, kx, sigma_x) * \
@@ -121,7 +124,7 @@ def get_gaussian_wave_packet3d(N3, L3, k) -> np.ndarray:
     x = np.linspace(-Lx/2, Lx/2, Nx)
     y = np.linspace(-Ly/2, Ly/2, Ny)
     z = np.linspace(-Lz/2, Lz/2, Nz)
-    X, Y, Z = np.meshgrid(x, y, z)
+    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
     # 3d wave function
     wave = one_dimension_wave_func(X, x0, kx, sigma_x) * \
@@ -143,13 +146,11 @@ def get_slits_mask(N2, seam1_pos, seam2_pos, seam_width_pixels):
     S2w_s = seam2_pos - round(seam_width_pixels/2)
     S2w_e = seam2_pos + round(seam_width_pixels/2)
     # 狹縫高度起始位置
-    Hs = round(1.6*Ny/4)
-    He = round(2.4*Ny/4)
 
     # 製作狹縫
     matrix = np.zeros(N2, dtype=int)
-    matrix[S1w_s:S1w_e, Hs:He] = 1
-    matrix[S2w_s:S2w_e, Hs:He] = 1
+    matrix[S1w_s:S1w_e, :] = 1
+    matrix[S2w_s:S2w_e, :] = 1
 
     return matrix
 
@@ -178,7 +179,7 @@ def propagate2d(Input: np.ndarray,
     dky = 2*np.pi / Ly
     kx = dkx * np.concatenate((np.arange(0,Nx/2,1), np.arange(-Nx/2,0,1)))   # spatial frequencies vector in the x direction (swapped)                                                         # discretization in the spatial spectral domain along the y direction
     ky = dky * np.concatenate((np.arange(0,Ny/2,1), np.arange(-Ny/2,0,1)))   # spatial frequencies vector in the y direction (swapped)
-    [Kx, Ky] = np.meshgrid(kx, ky)
+    [Kx, Ky] = np.meshgrid(kx, ky, indexing='ij')
     K2 = np.multiply(Kx,Kx) + np.multiply(Ky,Ky)    # Here we define some variable so that we don't need to compute them again and again
 
     # index potential
@@ -191,7 +192,7 @@ def propagate2d(Input: np.ndarray,
     if absorbing_boundary:
         x = dx * np.arange(-Nx/2,Nx/2,1)  # normalized x dimension vector
         y = dy * np.arange(-Ny/2,Ny/2,1)  # normalized x dimension vector
-        [X, Y] = np.meshgrid(x, y)
+        [X, Y] = np.meshgrid(x, y, indexing='ij')
         super_gaussian = np.exp(-((X / (0.9*Lx/(2*np.sqrt(np.log(2)))) )**20 + (Y / (0.9*Ly/(2*np.sqrt(np.log(2)))) )**20))
     else:
         super_gaussian = None
@@ -264,7 +265,7 @@ def propagate3d(Input3d: np.ndarray,
 
 #%%
 
-def get_wave_pair2d() -> Tuple[np.ndarray, np.ndarray]:
+def get_wave_pair2d(stepN:int = stepN) -> Tuple[np.ndarray, np.ndarray]:
     # 計算波包
     N2 = (Nx, Ny)
     L2 = (Lx, Ly)
@@ -408,8 +409,8 @@ def main2d():
     output_yx_intensity = Output_intensity
     plt.imshow(output_yx_intensity[0], extent=[-Ly/2*1e3,Ly/2*1e3,-Lx/2*1e3,Lx/2*1e3])
     plt.colorbar()
-    plt.xlabel('y axis [mm]')
-    plt.ylabel('x axis [mm]')
+    plt.xlabel('y axis')
+    plt.ylabel('x axis')
     plt.title('Input slits abs', fontsize='x-large')
     plt.show()
     plt.savefig('Input_slits.png')
@@ -417,8 +418,8 @@ def main2d():
     plt.figure(dpi = fig_dpi)
     plt.imshow(output_yx_intensity[-1], extent=[-Ly/2*1e3,Ly/2*1e3,-Lx/2*1e3,Lx/2*1e3])
     plt.colorbar()
-    plt.xlabel('y axis [mm]')
-    plt.ylabel('x axis [mm]')
+    plt.xlabel('y axis')
+    plt.ylabel('x axis')
     plt.title('Output abs', fontsize='x-large')
     plt.show()
     plt.savefig('Output.png')
@@ -427,8 +428,8 @@ def main2d():
     output_xp_intensity = np.sum(Output_intensity, axis=2)
     plt.imshow(output_xp_intensity, extent=[-Lx/2*1e3,Lx/2*1e3,propagation_distance*1e3,0])
     plt.colorbar()
-    plt.xlabel('x axis [mm]')
-    plt.ylabel('z axis [mm]')
+    plt.xlabel('x axis')
+    plt.ylabel('z axis')
     plt.title('Propagation abs', fontsize='x-large')
     plt.show()
     plt.savefig('Propagation.png')

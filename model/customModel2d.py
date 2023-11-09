@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch import Tensor
 from config.configClass import Config
-from . import CCNN as cc
+from .CNN import CCNN as cc
 
 class ToHiddenLayer(nn.Module):
     def __init__(self, hidden_channel):
@@ -31,6 +31,21 @@ class PropagationLayer(nn.Module):
         out = self.layernorm(x)
         out = self.conv1(out)
         out = self.conv2(out)
+        return out
+
+class PropagationLayer2(nn.Module):
+    def __init__(self, hidden_channel):
+        super(PropagationLayer2, self).__init__()
+        self.layernorm = cc.CLayerNorm([20, 20])
+        self.conv1 = cc.CResBlock2d(hidden_channel, hidden_channel) # 20 -> 20
+        self.conv2 = cc.CResBlock2d(hidden_channel, hidden_channel) # 20 -> 20
+        self.conv3 = cc.CResBlock2d(hidden_channel, hidden_channel) # 20 -> 20
+
+    def forward(self, x:Tensor) -> Tensor:
+        out = self.layernorm(x)
+        out = self.conv1(out)
+        out = self.conv2(out)
+        out = self.conv3(out)
         return out
 
 class SlitLayer(nn.Module):
@@ -65,7 +80,7 @@ class CustomModel(nn.Module):
         """Initialize a neural network model."""
         super(CustomModel, self).__init__()
         self.conf = conf
-        self.step_N = 1
+        self.step_N = conf.step_N
 
         hidden_channel = conf.hidden_channel
         self.tohidden = ToHiddenLayer(hidden_channel)
@@ -90,3 +105,53 @@ class CustomModel(nn.Module):
         out = self.project(out)
         return out
 
+class NoSlitModel(nn.Module):
+    def __init__(self, conf:Config):
+        """Initialize a neural network model."""
+        super(NoSlitModel, self).__init__()
+        self.conf = conf
+        self.step_N = 10
+
+        hidden_channel = conf.hidden_channel
+        self.tohidden = ToHiddenLayer(hidden_channel)
+        self.simulation = PropagationLayer(hidden_channel)
+        self.project = ProjectionLayer(hidden_channel)
+
+    #@torch.compile
+    def forward(self, x:Tensor) -> Tensor:
+        """Forward a batch of data through the model."""
+        out = self.tohidden(x)
+        for _ in range(self.step_N):
+            out = self.simulation(out)
+        out = self.project(out)
+        return out
+
+class SixLayerModel(nn.Module):
+    def __init__(self, conf:Config):
+        """Initialize a neural network model."""
+        super(SixLayerModel, self).__init__()
+        self.conf = conf
+        self.step_N = conf.step_N
+
+        hidden_channel = conf.hidden_channel
+        self.tohidden = ToHiddenLayer(hidden_channel)
+        self.pre_propagation = PropagationLayer2(hidden_channel)
+        self.branch1 = SlitLayer(hidden_channel)
+        self.branch2 = SlitLayer(hidden_channel)
+        self.fusion = PropagationLayer2(hidden_channel)
+        self.simulation = PropagationLayer(hidden_channel)
+        self.project = ProjectionLayer(hidden_channel)
+
+    #@torch.compile
+    def forward(self, x:Tensor) -> Tensor:
+        """Forward a batch of data through the model."""
+        out = self.tohidden(x)
+        out = self.pre_propagation(out)
+        out1 = self.branch1(out[:,:,:10])
+        out2 = self.branch2(out[:,:,10:])
+        out = torch.cat((out1,out2),2)
+        out = self.fusion(out)
+        for _ in range(self.step_N):
+            out = self.simulation(out)
+        out = self.project(out)
+        return out

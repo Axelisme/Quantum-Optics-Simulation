@@ -1,18 +1,14 @@
-
-"""A script to train a model on the train dataset."""
-
-#%%
+import time
 import wandb
 import torch
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import ConstantLR
-from loss.customLoss import CustomLoss
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
-from torchmetrics.classification import MulticlassAccuracy
 from torchmetrics import MetricCollection
 from util.utility import init
 from hyperparameters import train_conf
-from model.customModel2d import CustomModel
+from model.customModel2d import SixLayerModel as CustomModel
+from loss.customLoss import CustomLoss
 from evaluator.Loss2evaluator import LossScore
 from valider.valider import Valider
 from dataset.customDataset import CustomDataSet
@@ -30,14 +26,14 @@ def start_train(conf:Config):
     # setup model and other components
     model = CustomModel(conf)                                                               # create model
     optimizer = AdamW(model.parameters(), lr=conf.init_lr)                                  # create optimizer
-    scheduler = ConstantLR(optimizer)                                                       # create scheduler
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=True) # create scheduler
     criterion = CustomLoss()                                                         # create criterion
-    #eval1 = MulticlassAccuracy(num_classes=conf.output_size, average='macro')               # create evaluator
-    eval2 = LossScore(criterion)
-    evaluators = MetricCollection({'val_loss':eval2})
+    eval1 = LossScore(criterion)
+    evaluators = MetricCollection({'val_loss':eval1})
 
     # load model and optimizer from checkpoint if needed
-    ckpt_manager = CheckPointManager(conf, model, optim=None, scheduler=None)
+    ckpt_manager = CheckPointManager(conf, model, optim=optimizer, scheduler=scheduler, lower_better=conf.lower_better)
+    ckpt_manager.save_config(f"train_{time.strftime('%Y%m%d_%H%M%S')}.yaml")
     if conf.Load:
         ckpt_manager.load(ckpt_path=conf.load_path, device=device)
 
@@ -69,21 +65,20 @@ def start_train(conf:Config):
 
     # start training
     save_metric = conf.save_metric
-    lower_better = conf.lower_better
     for epoch in range(1,conf.epochs+1):
         print('-'*79)
 
         train_result = trainer.fit()                                                # train a epoch
         valid_result = valider.eval()                                               # validate a epoch
 
-        lr = scheduler.get_last_lr()[-1]                                            # get current learning rate
+        lr = optimizer.param_groups[0]['lr']                                        # get current learning rate
         show_result(conf, epoch, lr, train_result, valid_result)                    # show result
 
-        scheduler.step()                                                            # update learning rate
+        cur_score = valid_result[save_metric].item()                            # get current score
+        scheduler.step(metrics=cur_score)                                       # update learning rate
 
         if conf.Save:                                                               # save checkpoint if needed
-            cur_score = valid_result[save_metric].item()                            # get current score
-            ckpt_manager.update(cur_score, epoch, lower_better=lower_better)        # save checkpoint if better
+            ckpt_manager.update(cur_score, epoch)                                   # save checkpoint if better
 
         if hasattr(conf,"WandB") and conf.WandB:                                    # log result to wandb
             wandb.log({'lr':lr}, step=epoch, commit=False)
@@ -104,7 +99,7 @@ def show_result(conf:Config, epoch, lr, train_result, valid_result:dict) -> None
 
 
 if __name__ == '__main__':
-    #%% print information
+    # print information
     print(f'Torch version: {torch.__version__}')
     # initialize
     init(train_conf.seed)
@@ -113,5 +108,5 @@ if __name__ == '__main__':
                    name=train_conf.model_name,
                    config=train_conf.as_dict())
 
-    #%% start training
+    # start training
     start_train(train_conf)

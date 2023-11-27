@@ -4,9 +4,9 @@ import numpy as np
 from multiprocessing import Pool
 from tqdm import tqdm
 
-stepN = 50
+stepN = 16
 batchN = 52
-Epoch = 10000
+Epoch = 100
 
 def onehot(x: np.ndarray, start_dim=0):
     origin_shape = x.shape
@@ -42,32 +42,36 @@ def get_move_distance(onehot_waves: np.ndarray):
     # get the xy position of one hot wave
     x = np.linspace(-Lx/2, Lx/2, Nx)
     y = np.linspace(-Ly/2, Ly/2, Ny)
-    XY = np.stack(np.meshgrid(x, y, indexing='ij'), axis=-1) # (Nx, Ny, 2)
+    XX, YY = np.meshgrid(x, y, indexing='ij') # (Nx, Ny)
+    XY = np.stack([XX, YY], axis=-1) # (Nx, Ny, 2)
     positions = np.tensordot(onehot_waves, XY, axes=((-2, -1), (0, 1))) # (BatchN, StepN, 2)
     # calculate the distance of each step
     distances = np.diff(positions, axis=-2) # (BatchN, StepN-1, 2)
-    distances = np.square(distances).sum(axis=-1) + dz**2 # (BatchN, StepN-1)
-    distances = np.sqrt(distances).sum(axis=-1, keepdims=True) # (BatchN, 1)
+    #distances = np.square(distances).sum(axis=-1) + dz**2 # (BatchN, StepN-1)
+    #distances = np.sqrt(distances).sum(axis=-1, keepdims=True) # (BatchN, 1)
+    distances = np.abs(distances[:,:,0]).sum(axis=-1, keepdims=True) # (BatchN, 1)
     # calculate the final position
     final_pos = positions[:, -1, :] # (BatchN, 2)
     return np.concatenate([final_pos, distances], axis=-1) # (BatchN, xyd)
+
 
 def get_batch_distance(seed=0):
     np.random.seed(seed)
     _, onehot_waves = generate_waves(batchN)
     return get_move_distance(onehot_waves)
 
+
 def main():
     # get the distance of each batch
     with Pool(24) as pool:
         async_results = pool.imap_unordered(get_batch_distance, range(Epoch))
         results = list(tqdm(async_results, total=Epoch))
-        results = np.concatenate(results, axis=0) # (Epoch*batchN, 3)
+        results = np.concatenate(results, axis=0) # (Epoch*batchN, 2)
     #results = get_batch_distance(0)
 
     # group the results if the final x is close to X
     static_step = 1e-5
-    origin_results = results.copy()
+    origin_results = np.copy(results)
     results = results[np.argsort(results[:, 0])] # sort by final x
     results[:, 0] = np.round(results[:, 0] / static_step) * static_step # round the final x
     uni_xs, idxs, counts = np.unique(results[:, 0], return_index=True, return_counts=True)
@@ -80,7 +84,7 @@ def main():
     # plot original intensity
     plt.imshow(o_intensitys[-1].transpose(), origin='lower')
     plt.colorbar()
-    plt.savefig('test/original_intensity.png')
+    plt.savefig('result/original_intensity.png')
     plt.clf()
 
     # plot the distance distribution
@@ -88,7 +92,7 @@ def main():
     plt.xlabel('distance')
     plt.ylabel('count')
     plt.title('distance distribution')
-    plt.savefig('test/distance_distribution.png')
+    plt.savefig('result/distance_distribution.png')
     plt.clf()
 
     # plot the mean distance at each final x
@@ -106,15 +110,15 @@ def main():
     ax2.plot(uni_xs, counts, color=color)
     ax2.tick_params(axis='y', labelcolor=color)
     fig.tight_layout()
-    plt.savefig('test/mean_distance_and_count.png')
+    plt.savefig('result/mean_distance_and_count.png')
     plt.clf()
 
     # plot the counts against final x in scatter
-    plt.scatter(origin_results[:, 0], origin_results[:, 1], s=0.2, marker='.')
+    plt.scatter(origin_results[:, 0], origin_results[:, 1], s=0.2)
     plt.xlabel('final x')
     plt.ylabel('final y')
     plt.title('final position')
-    plt.savefig('test/final_position.png')
+    plt.savefig('result/final_position.png')
     plt.clf()
 
 

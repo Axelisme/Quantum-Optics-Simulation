@@ -7,14 +7,29 @@ from torch.utils.data import DataLoader
 from torchmetrics import MetricCollection
 from util.utility import init
 from hyperparameters import train_conf
-from model.customModel2d import SixLayerModel as CustomModel
+from model.simulator2d import CustomModel as CustomModel
 from loss.customLoss import CustomLoss
 from evaluator.Loss2evaluator import LossScore
 from valider.valider import Valider
-from dataset.labelDataset import CustomDataSet
+from dataset.nolabelDataset import CustomDataSet
 from trainer.trainer import Trainer
 from config.configClass import Config
 from ckptmanager.manager import CheckPointManager
+
+import numpy as np
+
+def collate_fn(datas):
+    """take successive 2 elements in data as pair and form a batch"""
+    inputs = []
+    outputs = []
+    for data in datas:
+        # unsqueeze to add channel dimension, data is a numpy array
+        for i in range(1,len(data)):
+            inputs.append(data[i-1])
+            outputs.append(data[i])
+    inputs = np.expand_dims(np.array(inputs), axis=1)
+    outputs = np.expand_dims(np.array(outputs), axis=1)
+    return torch.from_numpy(inputs).float(), torch.from_numpy(outputs).float()
 
 
 def start_train(conf:Config):
@@ -52,11 +67,13 @@ def start_train(conf:Config):
                               batch_size  = batch_size,
                               shuffle     = True,
                               pin_memory  = True,
+                              collate_fn  = collate_fn,
                               num_workers = num_workers)  # create train dataloader
     valid_loader = DataLoader(dataset     = valid_set,
                               batch_size  = batch_size,
                               shuffle     = False,
                               pin_memory  = True,
+                              collate_fn  = collate_fn,
                               num_workers = num_workers)  # create valid dataloader
 
     # create trainer and valider

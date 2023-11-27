@@ -15,8 +15,7 @@ import matplotlib.pyplot as plt
 
 # some parameters
 stepN = 10
-TstepN = 10
-dataset_name = f"S{stepN}T{TstepN}"
+dataset_name = f"S{stepN}"
 split_ratio = base_conf.split_ratio
 SAVE_DIR = os.path.join(PROC_DATA_DIR, dataset_name)
 clear_folder(SAVE_DIR) # clear the folder before generating data
@@ -27,7 +26,7 @@ def generate_process_data(dataset_path:str,
                           data_dtype:np.dtype,
                           data_loader:Callable,
                           mode_length:int = 1000,
-                          max_batch_num:int = 1000) -> None:
+                          max_batch_num:int = 32) -> None:
     """
     Generate processed data for the project.
     """
@@ -44,22 +43,26 @@ def generate_process_data(dataset_path:str,
             bar = tqdm(total=mode_length)
             while saved_num < mode_length:
                 batch_num = min(max_batch_num, mode_length - saved_num)
-                save_ids = list(range(saved_num, saved_num + batch_num))
-                batch = pool.imap_unordered(data_loader, save_ids)
-                for idx, data in zip(save_ids, batch):
-                    dataset[idx] = data
+                batch = pool.imap_unordered(data_loader, range(saved_num, saved_num + batch_num))
+                #batch = [data_loader(i) for i in range(saved_num, saved_num + batch_num)]
+                for data in batch:
+                    if isinstance(data, list):
+                        for d in data:
+                            dataset[saved_num] = d
+                            saved_num += 1
+                    else:
+                        dataset[saved_num] = data
+                        saved_num += 1
                     bar.update()
-                saved_num += batch_num
             bar.close()
 
 def data_loader(_):
-    Input,Ouput = get_wave_pair2d(TstepN)
-    Input = Input.reshape(1,128,128,2)
-    Ouput = Ouput[stepN,:,:,:]
-    Ouput = Ouput.reshape(1,128,128,2)
-    return Input,Ouput
+    Input,Ouput = get_wave_pair2d(stepN)
+    assert Input.shape == (64,64,2)
+    assert Ouput.shape == (stepN+1,64,64,2)
+    return (Ouput,)
 
-data_dtype = np.dtype([("input", np.float32, (1,80,80,2)), ("output", np.float32,(1,80,80,2))])
+data_dtype = np.dtype([("output", np.float32,(11,64,64,2))])
 data_length = 5000
 for mode, ratio in split_ratio.items():
     DATASET_PATH = os.path.join(SAVE_DIR, f"{mode}.h5")
@@ -82,19 +85,18 @@ def sampling_process_samples(dataset_path:str,
         dataset = reader["dataset"]
         data_length = reader.attrs["length"]
         # sampling
-        sample_ids = random.sample(range(data_length), max_num)
+        sample_ids = random.sample(range(data_length), min(max_num, data_length))
         # save samples
         for idx, sample_id in enumerate(tqdm(sample_ids)):
             sample = dataset[sample_id]
             sample_saver(idx, sample, *args, **kwargs)
 
 def sample_saver(id, sample, sample_dir):
-    Input, Output = sample
-    Input_probability  = Input[0,:,:,0]**2 +  Input[0,:,:,1]**2
-    Output_probability = Output[0,:,:,0]**2 + Output[0,:,:,1]**2
+    Output = sample[0]
+    Output_probability = Output[...,0]**2 + Output[...,1]**2
     # save input
     fig = plt.figure()
-    plt.imshow(Input_probability, extent=[-40,40,-40,40])
+    plt.imshow(Output_probability[0], extent=[-40,40,-40,40])
     plt.colorbar()
     plt.title("Input probability")
     plt.xlabel("x")
@@ -103,7 +105,7 @@ def sample_saver(id, sample, sample_dir):
     plt.close(fig)
     # save output
     fig = plt.figure()
-    plt.imshow(Output_probability, extent=[-40,40,-40,40])
+    plt.imshow(Output_probability[-1], extent=[-40,40,-40,40])
     plt.colorbar()
     plt.title("Output probability")
     plt.xlabel("x")

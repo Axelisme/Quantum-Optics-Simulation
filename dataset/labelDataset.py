@@ -5,6 +5,7 @@ import h5py
 from typing import Callable, Optional
 import torch.utils.data as data
 from config.configClass import Config
+from weakref import finalize
 
 def load_processed_dataset(file_path: str):
     """load the processed dataset from the file."""
@@ -33,11 +34,17 @@ class CustomDataSet(data.Dataset):
         self.fileHandler = None
         self.dataset = None
 
+        # finalize the file handler
+        self.__finalizer = finalize(self, self.close)
 
-    def __del__(self):
+
+    def close(self):
         # close file handler if exists
         if hasattr(self,'fileHandler') and self.fileHandler is not None:
             self.fileHandler.close()
+            self.fileHandler = None
+        if hasattr(self,'dataset'):
+            self.dataset = None
 
 
     def __getitem__(self, idx):
